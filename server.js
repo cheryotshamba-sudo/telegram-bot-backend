@@ -7,8 +7,10 @@ const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
+
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
+const BACKEND_URL = process.env.BACKEND_URL;
 
 if (!BOT_TOKEN) {
     console.error("❌ TELEGRAM_BOT_TOKEN is missing.");
@@ -54,6 +56,12 @@ async function telegram(method, data = {}) {
 // ==========================================
 
 async function sendMessage(chatId, text, options = {}) {
+
+    if (!chatId) {
+        console.error("❌ Chat ID is missing.");
+        return null;
+    }
+
     return telegram("sendMessage", {
         chat_id: chatId,
         text,
@@ -63,20 +71,24 @@ async function sendMessage(chatId, text, options = {}) {
 }
 
 // ==========================================
-// ADMIN MESSAGE
+// ADMIN NOTIFICATION
 // ==========================================
 
 async function notifyAdmin(text) {
+
     if (!ADMIN_CHAT_ID) {
-        console.log("⚠️ ADMIN_CHAT_ID not configured.");
+        console.log("⚠️ TELEGRAM_ADMIN_CHAT_ID is not configured.");
         return;
     }
 
-    await sendMessage(ADMIN_CHAT_ID, text);
+    await sendMessage(
+        ADMIN_CHAT_ID,
+        text
+    );
 }
 
 // ==========================================
-// START COMMAND
+// /START
 // ==========================================
 
 async function handleStart(message) {
@@ -95,9 +107,7 @@ async function handleStart(message) {
         chatId,
 
         `👋 <b>Welcome, ${firstName}</b>\n\n` +
-
         `Your Telegram account has been connected successfully.\n\n` +
-
         `Please choose an option below:`,
 
         {
@@ -126,11 +136,8 @@ async function handleStart(message) {
     await notifyAdmin(
 
         `🔔 <b>NEW TELEGRAM USER</b>\n\n` +
-
         `Name: ${firstName}\n` +
-
         `Username: ${username}\n` +
-
         `Telegram ID: <code>${chatId}</code>`
 
     );
@@ -147,7 +154,6 @@ async function startVerification(chatId) {
         chatId,
 
         `🔐 <b>Verification Required</b>\n\n` +
-
         `Please confirm that you want to continue with the verification process.`,
 
         {
@@ -159,7 +165,6 @@ async function startVerification(chatId) {
                             text: "✅ True",
                             callback_data: "verification_true"
                         },
-
                         {
                             text: "❌ False",
                             callback_data: "verification_false"
@@ -178,6 +183,10 @@ async function startVerification(chatId) {
 
 async function handleCallback(callback) {
 
+    if (!callback.message) {
+        return;
+    }
+
     const chatId =
         callback.message.chat.id;
 
@@ -191,10 +200,7 @@ async function handleCallback(callback) {
         }
     );
 
-    // --------------------------------------
-    // SHARE PHONE
-    // --------------------------------------
-
+    // SHARE PHONE BUTTON
     if (data === "share_phone") {
 
         await sendMessage(
@@ -202,8 +208,7 @@ async function handleCallback(callback) {
             chatId,
 
             `📱 <b>Phone Number</b>\n\n` +
-
-            `Tap the button below to share the phone number associated with your Telegram account.`,
+            `Tap the button below to share your phone number with this bot.`,
 
             {
                 reply_markup: {
@@ -227,10 +232,7 @@ async function handleCallback(callback) {
         return;
     }
 
-    // --------------------------------------
     // START VERIFICATION
-    // --------------------------------------
-
     if (data === "start_verification") {
 
         await startVerification(chatId);
@@ -238,10 +240,7 @@ async function handleCallback(callback) {
         return;
     }
 
-    // --------------------------------------
-    // TRUE
-    // --------------------------------------
-
+    // VERIFICATION TRUE
     if (data === "verification_true") {
 
         await sendMessage(
@@ -249,7 +248,6 @@ async function handleCallback(callback) {
             chatId,
 
             `✅ <b>Verification Confirmed</b>\n\n` +
-
             `Your confirmation has been recorded successfully.`,
 
             {
@@ -262,7 +260,6 @@ async function handleCallback(callback) {
         await notifyAdmin(
 
             `✅ <b>VERIFICATION CONFIRMED</b>\n\n` +
-
             `Telegram ID: <code>${chatId}</code>`
 
         );
@@ -270,10 +267,7 @@ async function handleCallback(callback) {
         return;
     }
 
-    // --------------------------------------
-    // FALSE
-    // --------------------------------------
-
+    // VERIFICATION FALSE
     if (data === "verification_false") {
 
         await sendMessage(
@@ -281,7 +275,6 @@ async function handleCallback(callback) {
             chatId,
 
             `❌ <b>Verification Cancelled</b>\n\n` +
-
             `No verification was completed.`,
 
             {
@@ -294,7 +287,6 @@ async function handleCallback(callback) {
         await notifyAdmin(
 
             `❌ <b>VERIFICATION CANCELLED</b>\n\n` +
-
             `Telegram ID: <code>${chatId}</code>`
 
         );
@@ -313,7 +305,9 @@ async function handleContact(message) {
     const contact =
         message.contact;
 
-    if (!contact) return;
+    if (!contact) {
+        return;
+    }
 
     const phone =
         contact.phone_number;
@@ -326,11 +320,8 @@ async function handleContact(message) {
         chatId,
 
         `✅ <b>Phone Number Received</b>\n\n` +
-
         `Name: ${firstName}\n` +
-
         `Phone: ${phone}\n\n` +
-
         `You can now continue.`,
 
         {
@@ -343,11 +334,8 @@ async function handleContact(message) {
     await notifyAdmin(
 
         `📱 <b>PHONE NUMBER SHARED</b>\n\n` +
-
         `Name: ${firstName}\n` +
-
         `Phone: <code>${phone}</code>\n` +
-
         `Telegram ID: <code>${chatId}</code>`
 
     );
@@ -363,39 +351,24 @@ app.post(
 
         try {
 
-            const update =
-                req.body;
-
-            // Telegram message
+            const update = req.body;
 
             if (update.message) {
 
                 const message =
                     update.message;
 
-                if (
-                    message.text === "/start"
-                ) {
+                if (message.text === "/start") {
 
-                    await handleStart(
-                        message
-                    );
+                    await handleStart(message);
 
-                } else if (
-                    message.contact
-                ) {
+                } else if (message.contact) {
 
-                    await handleContact(
-                        message
-                    );
+                    await handleContact(message);
                 }
             }
 
-            // Telegram button
-
-            if (
-                update.callback_query
-            ) {
+            if (update.callback_query) {
 
                 await handleCallback(
                     update.callback_query
@@ -438,12 +411,9 @@ app.get("/", (req, res) => {
 // SET WEBHOOK
 // ==========================================
 
-app.post("/set-webhook", async (req, res) => {
+app.get("/set-webhook", async (req, res) => {
 
-    const backendUrl =
-        process.env.BACKEND_URL;
-
-    if (!backendUrl) {
+    if (!BACKEND_URL) {
 
         return res.status(400).json({
 
@@ -456,7 +426,7 @@ app.post("/set-webhook", async (req, res) => {
     }
 
     const webhookUrl =
-        `${backendUrl}/telegram/webhook`;
+        `${BACKEND_URL.replace(/\/$/, "")}/telegram/webhook`;
 
     const result =
         await telegram(
@@ -468,13 +438,25 @@ app.post("/set-webhook", async (req, res) => {
 
     res.json({
 
-        success: true,
+        success: result?.ok === true,
 
         webhook: webhookUrl,
 
         telegram: result
 
     });
+});
+
+// ==========================================
+// WEBHOOK STATUS
+// ==========================================
+
+app.get("/webhook-info", async (req, res) => {
+
+    const result =
+        await telegram("getWebhookInfo");
+
+    res.json(result);
 });
 
 // ==========================================
