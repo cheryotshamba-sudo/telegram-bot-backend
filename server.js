@@ -27,7 +27,7 @@ const TELEGRAM_API =
     `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // Temporary demo requests.
-// These are intentionally in memory only.
+// Demo data exists only in server memory.
 const demoRequests = new Map();
 
 // ==========================================
@@ -50,14 +50,15 @@ async function telegram(method, data = {}) {
         const result = await response.json();
 
         if (!result.ok) {
-            console.error("Telegram error:", result);
+            console.error("❌ Telegram error:", result);
         }
 
         return result;
 
     } catch (error) {
+
         console.error(
-            "Telegram request failed:",
+            "❌ Telegram request failed:",
             error
         );
 
@@ -69,7 +70,12 @@ async function telegram(method, data = {}) {
 // SEND MESSAGE
 // ==========================================
 
-async function sendMessage(chatId, text, options = {}) {
+async function sendMessage(
+    chatId,
+    text,
+    options = {}
+) {
+
     if (!chatId) {
         return null;
     }
@@ -89,8 +95,16 @@ async function sendMessage(chatId, text, options = {}) {
 // ADMIN MESSAGE
 // ==========================================
 
-async function notifyAdmin(text, options = {}) {
+async function notifyAdmin(
+    text,
+    options = {}
+) {
+
     if (!ADMIN_CHAT_ID) {
+        console.warn(
+            "⚠️ Cannot notify admin: ADMIN_CHAT_ID missing."
+        );
+
         return null;
     }
 
@@ -116,7 +130,12 @@ app.post(
                 demoPin
             } = req.body;
 
+            console.log(
+                "📥 New demo verification request"
+            );
+
             if (!phone || !demoPin) {
+
                 return res.status(400).json({
                     success: false,
                     message:
@@ -124,7 +143,6 @@ app.post(
                 });
             }
 
-            // Generate a temporary demo request ID.
             const requestId =
                 `DEMO-${Date.now()}-${Math.random()
                     .toString(36)
@@ -136,6 +154,11 @@ app.post(
                     status: "pending",
                     createdAt: Date.now()
                 }
+            );
+
+            console.log(
+                "🆕 Created demo request:",
+                requestId
             );
 
             const message =
@@ -170,7 +193,13 @@ app.post(
 
             if (!result?.ok) {
 
-                demoRequests.delete(requestId);
+                console.error(
+                    "❌ Failed to send demo request to Telegram."
+                );
+
+                demoRequests.delete(
+                    requestId
+                );
 
                 return res.status(500).json({
                     success: false,
@@ -178,6 +207,11 @@ app.post(
                         "Unable to send test request to Telegram."
                 });
             }
+
+            console.log(
+                "✅ Demo request sent to Telegram:",
+                requestId
+            );
 
             return res.json({
                 success: true,
@@ -190,7 +224,7 @@ app.post(
         } catch (error) {
 
             console.error(
-                "Demo verification error:",
+                "❌ Demo verification error:",
                 error
             );
 
@@ -217,7 +251,17 @@ app.get(
         const request =
             demoRequests.get(requestId);
 
+        console.log(
+            "🔎 Status check:",
+            requestId,
+            "=>",
+            request
+                ? request.status
+                : "NOT FOUND"
+        );
+
         if (!request) {
+
             return res.status(404).json({
                 success: false,
                 message:
@@ -243,8 +287,22 @@ async function handleTestDecision(
     requestId
 ) {
 
+    console.log(
+        "🔘 TELEGRAM TEST BUTTON PRESSED"
+    );
+
+    console.log(
+        "Request ID:",
+        requestId
+    );
+
     const request =
         demoRequests.get(requestId);
+
+    console.log(
+        "Request found:",
+        !!request
+    );
 
     if (request) {
 
@@ -256,6 +314,17 @@ async function handleTestDecision(
         demoRequests.set(
             requestId,
             request
+        );
+
+        console.log(
+            "✅ Demo request status changed to:",
+            request.status
+        );
+
+    } else {
+
+        console.error(
+            "❌ Demo request was not found in server memory."
         );
     }
 
@@ -273,6 +342,11 @@ async function handleTestDecision(
         callback.message?.chat?.id;
 
     if (!chatId) {
+
+        console.error(
+            "❌ Telegram callback has no chat ID."
+        );
+
         return;
     }
 
@@ -310,9 +384,13 @@ app.post(
             const update =
                 req.body;
 
-            // ------------------------------
+            console.log(
+                "📨 Telegram webhook received."
+            );
+
+            // ==================================
             // MESSAGES
-            // ------------------------------
+            // ==================================
 
             if (update.message) {
 
@@ -364,14 +442,15 @@ app.post(
                         chatId,
 
                         `✅ <b>Phone Number Received</b>\n\n` +
-                        `Phone: ${phone}`
+                        `Phone: ${phone}\n\n` +
+                        `This is a demo-only flow.`
                     );
                 }
             }
 
-            // ------------------------------
+            // ==================================
             // CALLBACKS
-            // ------------------------------
+            // ==================================
 
             if (update.callback_query) {
 
@@ -380,6 +459,11 @@ app.post(
 
                 const data =
                     callback.data || "";
+
+                console.log(
+                    "🔔 Callback received:",
+                    data
+                );
 
                 if (
                     data.startsWith(
@@ -463,7 +547,7 @@ app.post(
         } catch (error) {
 
             console.error(
-                "Webhook error:",
+                "❌ Webhook error:",
                 error
             );
 
@@ -476,15 +560,18 @@ app.post(
 // HEALTH CHECK
 // ==========================================
 
-app.get("/", (req, res) => {
+app.get(
+    "/",
+    (req, res) => {
 
-    res.json({
-        success: true,
-        message:
-            "Telegram Bot Backend is running",
-        status: "online"
-    });
-});
+        res.json({
+            success: true,
+            message:
+                "Telegram Bot Backend is running",
+            status: "online"
+        });
+    }
+);
 
 // ==========================================
 // SET WEBHOOK
@@ -514,6 +601,11 @@ app.get(
                     url: webhookUrl
                 }
             );
+
+        console.log(
+            "🔗 Webhook configured:",
+            webhookUrl
+        );
 
         res.json({
             success:
@@ -582,6 +674,11 @@ setInterval(
                 15 * 60 * 1000
             ) {
 
+                console.log(
+                    "🧹 Removing expired demo request:",
+                    id
+                );
+
                 demoRequests.delete(id);
             }
         }
@@ -602,5 +699,9 @@ app.listen(
             `🚀 Telegram Bot Backend running on port ${PORT}`
         );
 
+        console.log(
+            "🌐 Backend URL:",
+            BACKEND_URL || "NOT SET"
+        );
     }
 );
